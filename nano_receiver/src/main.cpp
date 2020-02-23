@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include "SoftwareSerial.h"
 #define BUSPIN 12
-#define MYID 13 // the chip's designated address, usually each receiver gets a different one on your local installation
+#define MYID 14 // the chip's designated address, usually each receiver gets a different one on your local installation
 
 // PWM PINS: Uno, Nano, Mini : 3, 5, 6, 9, 10, 11; 490 Hz (pins 5 and 6: 980 Hz)
 uint8_t pins[] = {A3, A2, A1, A0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
