@@ -59,6 +59,7 @@
 				'boards': '10,11,12,13,14', /* boards present in the system */
 				'cfg': { },
 				'stimer': false, /* a timeout timer ID, or false */
+				'sactive': false, /* true if a request is underway */
 				'cmdqueue': [ ], /* a queue for commands to send */
 				'req': { } /* request object */
 				,
@@ -103,11 +104,13 @@
 				 */
 				'sendqueue': function () {
 					if ( theSender.cmdqueue.length > 0 ) {
+						theSender.sactive = true;
 						var current = theSender.cmdqueue[0];
 						console.log( theSender.cmdqueue.length, current );
 						theSender.req.open( "GET", theSender.server + "/cmd?" + current, true );
 						theSender.req.send();
 					} else {
+						theSender.sactive = false;
 						theSender.reporter( "Send done." );
 					}
 				}
@@ -162,9 +165,20 @@
 					theSender.enqueue( command );
 				}
 				,
-				'enqueue': function ( cmd ) {
-					theSender.cmdqueue.push( theSender.board + "," + cmd );
-					theSender.sendqueue();
+				'enqueue': function ( cmd, board ) {
+					if ( typeof board === 'undefined' ) {
+
+						theSender.cmdqueue.push( theSender.board + "," + cmd );
+					} else {
+						if ( board === "" ) {
+							theSender.cmdqueue.push( cmd );
+						} else {
+							theSender.cmdqueue.push( board + "," + cmd );
+						}
+					}
+					if ( theSender.sactive == false ) {
+						theSender.sendqueue();
+					}
 				}
 				,
 				/*
@@ -227,8 +241,6 @@
 				 */
 				'replay': function () {
 
-					theSender.cmdqueue = [ ];
-
 					theSender.cfg = JSON.parse( document.getElementById( 'config' ).value );
 					for ( var b in theSender.cfg ) {
 						if ( !theSender.cfg.hasOwnProperty( b ) )
@@ -248,11 +260,11 @@
 							if ( cmds.F )
 								s.push( cmds.F );
 
-							theSender.cmdqueue.push( s.join( "," ) );
+							theSender.enqueue( s.join( "," ), "" );
 
 						}
 					}
-					theSender.sendqueue();
+
 				}
 
 			}
