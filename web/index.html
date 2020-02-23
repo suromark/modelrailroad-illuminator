@@ -1,296 +1,300 @@
 <html>
-<head>
-<title>Toytrain-Bridge-Tester</title>
-<style>
-body { font-family: Arial, Helvetica, sans-serif; font-size: 1.4em; }
-.thebutton { width: 5em; padding: 1em; margin: 0.5em; margin-right: 2em; border: none; border-radius: 1em; background-color: #ddd; color: black;}
-.thebutton.bon { background-color: limegreen; color: black; }
-.thebutton.boff { background-color: darkred; color: yellow; }
-.thebutton.blink { background-color: yellow; color: black; }
-.thebutton.rando { background-color: cyan; color: black; }
-.thebutton.flash { background-color: orange; color: black; }
-.theslider { width: 20em; }
-#reporter, #config { font-family: monospace; font-size: 0.5em; }
-</style>
-</head>
-<body>
-<!-- // Template Code as example - actual content is being created by Javascript further down
-<p>
-<input data-com="P13" type="range" id="leveler" name="leveler" min="0" max="255" onchange="theSender.dimmer( this )"/>
-</p>
--->
+	<head>
+		<title>Toytrain-Bridge-Tester</title>
+		<style>
+			body { font-family: Arial, Helvetica, sans-serif; font-size: 1.4em; }
+			.thebutton { width: 5em; padding: 1em; margin: 0.5em; margin-right: 2em; border: none; border-radius: 1em; background-color: #ddd; color: black;}
+			.thebutton.bon { background-color: limegreen; color: black; }
+			.thebutton.boff { background-color: darkred; color: yellow; }
+			.thebutton.blink { background-color: yellow; color: black; }
+			.thebutton.rando { background-color: cyan; color: black; }
+			.thebutton.flash { background-color: orange; color: black; }
+			.theslider { width: 20em; }
+			#reporter, #config { font-family: monospace; font-size: 0.5em; }
+		</style>
+	</head>
+	<body>
+		<!-- // Template Code as example - actual content is being created by Javascript further down
+		<p>
+		<input data-com="P13" type="range" id="leveler" name="leveler" min="0" max="255" onchange="theSender.dimmer( this )"/>
+		</p>
+		-->
 
-<h2>Board 
-<select id="boardselect" size="1"><!-- javascript inserts boards --></select>
-</h2>
-<p>
-<button class="thebutton" id="boardoff">Board OFF</button><!-- Global command for all pins of selected board --> 
-</p>
-<div id="buttonsbox"><!-- javascript inserts new buttons here --></div>
-<div id="fxbox"><!-- javascript inserts new buttons here --></div>
-<div id="reporter"></div>
-<textarea id="config" cols="80" rows="5"></textarea>
-<button class="thebutton" id="replay">Send Config</button>
-<script type="text/javascript">
-		/*
+		<h2>Board 
+			<select id="boardselect" size="1"><!-- javascript inserts boards --></select>
+		</h2>
+		<p>
+			<button class="thebutton" id="boardoff">Board OFF</button><!-- Global command for all pins of selected board --> 
+		</p>
+		<div id="buttonsbox"><!-- javascript inserts new buttons here --></div>
+		<div id="fxbox"><!-- javascript inserts new buttons here --></div>
+		<div id="reporter"></div>
+		<textarea id="config" cols="80" rows="5"></textarea>
+		<button class="thebutton" id="replay">Send Config</button>
+		<script type="text/javascript">
+			/*
 			 Toolbox
 			 */
 
-		var theSender = {
-		'server' : '//toytrainbox',
-		'board' : 'T10', /* default board */
-		'pin' : false,
-		'level' : 0,
-		'boards' : '10,11,12,13,14', /* boards present in the system */
-		'cfg' : { },
-		'cmdpush' : [], /* a queue for commands to send */
-		'req' : { } /* request object */
-		,
-		'reporter' : function( text ) {
-		document.getElementById( 'reporter').innerHTML = text;
-		}
-		,
-		'init' : function() {
-			console.log( "Running init ...");
-			theSender.req = new XMLHttpRequest( );
-			theSender.req.addEventListener( 'load', function ( event ) {
-				if ( theSender.req.status >= 200 && theSender.req.status < 300 ) {
-					theSender.reporter( theSender.req.responseText );
-					window.setTimeout( theSender.replayticker, 100 );
-				} else {
-					theSender.reporter( theSender.req.statusText );
+			var theSender = {
+				'server': '//toytrainbox',
+				'board': 'T10', /* default board */
+				'pin': false,
+				'level': 0,
+				'boards': '10,11,12,13,14', /* boards present in the system */
+				'cfg': { },
+				'cmdpush': [ ], /* a queue for commands to send */
+				'req': { } /* request object */
+				,
+				'reporter': function ( text ) {
+					document.getElementById( 'reporter' ).innerHTML = text;
 				}
-			} );
-			
-			var t = document.getElementById( 'boardselect');
-			var boards = this.boards.split(",");
-			for( var k in boards ) {
-				if( !boards.hasOwnProperty(k)) {
-				continue; 
+				,
+				'init': function () {
+					console.log( "Running init ..." );
+					theSender.req = new XMLHttpRequest( );
+					theSender.req.addEventListener( 'load', function ( event ) {
+						if ( theSender.req.status >= 200 && theSender.req.status < 300 ) {
+							theSender.reporter( theSender.req.responseText );
+							window.setTimeout( theSender.replayticker, 100 );
+						} else {
+							theSender.reporter( theSender.req.statusText );
+						}
+					} );
+
+					var t = document.getElementById( 'boardselect' );
+					var boards = this.boards.split( "," );
+					for ( var k in boards ) {
+						if ( !boards.hasOwnProperty( k ) ) {
+							continue;
+						}
+						var o = document.createElement( 'option' );
+						o.text = 'T' + boards[k];
+						t.add( o );
+					}
+
+					t.addEventListener( 'change', theSender.boardwechsel );
+
+					document.getElementById( 'boardoff' ).addEventListener( 'click', theSender.boardoff );
+					document.getElementById( 'replay' ).addEventListener( 'click', theSender.replay );
+
+					theSender.replayticker();
+
 				}
-				var o = document.createElement( 'option');
-				o.text = 'T' + boards[k];
-				t.add( o );
-			}
-			
-			t.addEventListener('change', theSender.boardwechsel );
-			
-			document.getElementById('boardoff').addEventListener('click', theSender.boardoff );
-			document.getElementById('replay').addEventListener('click', theSender.replay);
-			
-			theSender.replayticker();
-			
-		}
-		,
-		'boardwechsel' : function( ev ) {
-			var e = ev || window.event;
-			theSender.board = e.target.value;
-		}
-		,
-		'level' : function( ev ) {
-			var e = ev || window.event;
-			var command = e.target.getAttribute('data-com').split(",");
-			theSender.setconfig( command[0], command[1] );
-			theSender.cmdsend( command );
-			}
-		,
-		'dimmer' : function( ev ) {
-			var e = ev || window.event;
-			var command = ( e.target.getAttribute('data-com') + ",L" + e.target.value ).split(",");
-			theSender.setconfig( command[0], command[1] );
-			theSender.cmdsend( command );
-			}
-		,
-		'cmdsend' : function( cmd ) {
-			var command = "/cmd?" + theSender.board + ',' + cmd;
-			theSender.reporter("Senden... " + command);
-			theSender.req.open( "GET", theSender.server + command, true );
-			// theSender.req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-			theSender.req.send();
-			}
-		,
-		'setconfig' : function( pin, lev ) {
-			if( !theSender.cfg.hasOwnProperty(theSender.board )) {
-				theSender.cfg[ theSender.board ] = { };
-			}
-			if( !theSender.cfg[theSender.board].hasOwnProperty( pin )) {
-				theSender.cfg[theSender.board][pin] = { };
-			}
-			theSender.cfg[theSender.board][pin].L = lev;
-			theSender.pin = pin;
-			theSender.showcfg();
-		}
-		,
-		'setfx' : function( ev ) {
-			if( !theSender.pin ) { 
-				alert("Bitte zuerst Ziel-Pin anklicken!"); 
-				return false; 
-			}
-			var e = ev || window.event;
-			var fx = e.target.getAttribute('data-com') ;
-			theSender.cmdsend( theSender.pin + "," + fx );
-			theSender.cfg[theSender.board][theSender.pin].F = fx;
-			theSender.showcfg();
-		}
-		,
-		'showcfg' : function() {
-			document.getElementById('config').innerHTML = JSON.stringify( theSender.cfg);
-		}
-		,
-		'boardoff' : function() {
-			theSender.cmdsend( 'G0' );
-			delete theSender.cfg[theSender.board];
-			theSender.showcfg();
-		}
-		,
-		'replay' : function() {
-		
-			theSender.cmdpush = [];
-		
-			theSender.cfg = JSON.parse( document.getElementById( 'config').value );
-			for( var b in theSender.cfg ) {
-				if( !theSender.cfg.hasOwnProperty( b )) continue;
-				
-				for( var p in theSender.cfg[b] ) {
-					if( !theSender.cfg[b].hasOwnProperty(p)) continue;
-					
-					var cmds = theSender.cfg[b][p];
-					
-					var s = [ b , p ];
-					
-					if( cmds.L ) s.push( cmds.L );
-									
-					if( cmds.F ) s.push( cmds.F );
-					
-					theSender.cmdpush.push( s.join(",") );
-					
+				,
+				'boardwechsel': function ( ev ) {
+					var e = ev || window.event;
+					theSender.board = e.target.value;
+				}
+				,
+				'level' : function ( ev ) {
+					var e = ev || window.event;
+					var command = e.target.getAttribute( 'data-com' ).split( "," );
+					theSender.setconfig( command[0], command[1] );
+					theSender.cmdsend( command );
+				}
+				,
+						'dimmer': function ( ev ) {
+							var e = ev || window.event;
+							var command = ( e.target.getAttribute( 'data-com' ) + ",L" + e.target.value ).split( "," );
+							theSender.setconfig( command[0], command[1] );
+							theSender.cmdsend( command );
+						}
+				,
+				'cmdsend': function ( cmd ) {
+					var command = "/cmd?" + theSender.board + ',' + cmd;
+					theSender.reporter( "Senden... " + command );
+					theSender.req.open( "GET", theSender.server + command, true );
+					// theSender.req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+					theSender.req.send();
+				}
+				,
+				'setconfig': function ( pin, lev ) {
+					if ( !theSender.cfg.hasOwnProperty( theSender.board ) ) {
+						theSender.cfg[ theSender.board ] = { };
+					}
+					if ( !theSender.cfg[theSender.board].hasOwnProperty( pin ) ) {
+						theSender.cfg[theSender.board][pin] = { };
+					}
+					theSender.cfg[theSender.board][pin].L = lev;
+					theSender.pin = pin;
+					theSender.showcfg();
+				}
+				,
+				'setfx': function ( ev ) {
+					if ( !theSender.pin ) {
+						alert( "Bitte zuerst Ziel-Pin anklicken!" );
+						return false;
+					}
+					var e = ev || window.event;
+					var fx = e.target.getAttribute( 'data-com' );
+					theSender.cmdsend( theSender.pin + "," + fx );
+					theSender.cfg[theSender.board][theSender.pin].F = fx;
+					theSender.showcfg();
+				}
+				,
+				'showcfg': function () {
+					document.getElementById( 'config' ).innerHTML = JSON.stringify( theSender.cfg );
+				}
+				,
+				'boardoff': function () {
+					theSender.cmdsend( 'G0' );
+					delete theSender.cfg[theSender.board];
+					theSender.showcfg();
+				}
+				,
+				'replay': function () {
+
+					theSender.cmdpush = [ ];
+
+					theSender.cfg = JSON.parse( document.getElementById( 'config' ).value );
+					for ( var b in theSender.cfg ) {
+						if ( !theSender.cfg.hasOwnProperty( b ) )
+							continue;
+
+						for ( var p in theSender.cfg[b] ) {
+							if ( !theSender.cfg[b].hasOwnProperty( p ) )
+								continue;
+
+							var cmds = theSender.cfg[b][p];
+
+							var s = [ b, p ];
+
+							if ( cmds.L )
+								s.push( cmds.L );
+
+							if ( cmds.F )
+								s.push( cmds.F );
+
+							theSender.cmdpush.push( s.join( "," ) );
+
+						}
 					}
 				}
+				,
+				'replayticker': function () {
+					if ( theSender.cmdpush.length > 0 ) {
+						var current = theSender.cmdpush.shift();
+						console.log( current );
+						theSender.req.open( "GET", theSender.server + "/cmd?" + current, true );
+						theSender.req.send();
+					} else {
+						window.setTimeout( theSender.replayticker, 1000 );
+					}
+				}
+
 			}
-		,
-		'replayticker' : function() {
-			if( theSender.cmdpush.length > 0 ) {
-				var current = theSender.cmdpush.shift();
-				console.log( current );
-				theSender.req.open("GET", theSender.server + "/cmd?" + current , true );
-				theSender.req.send();			
-			} else {
-				window.setTimeout( theSender.replayticker, 1000 );
+
+
+
+
+			theSender.init();
+
+
+
+			/* create interface buttons programmatically */
+
+			var theList = "P0,P1,P2,P3,P4,*P5,P6,*P7,*P8,P9,P10,*P11,*P12,*P13".split( "," ); /* star-prefixed = mapped to PWM pin on arduino */
+
+			var buttons = [
+				{ 't': '', 'c': 'thebutton bon level', 'd': 'L255' },
+				{ 't': 'off', 'c': 'thebutton boff level', 'd': 'L0' }
+			];
+
+			for ( var k in theList ) {
+				if ( !theList.hasOwnProperty( k ) ) {
+					continue;
+				}
+
+				var lbl = theList[k].split( '*' ).join( '' );
+
+				var breaker = document.createElement( 'br' );
+				document.getElementById( 'buttonsbox' ).appendChild( breaker );
+
+				for ( var b in buttons ) {
+					if ( !buttons.hasOwnProperty( b ) ) {
+						continue;
+					}
+
+					var nb = document.createElement( 'button' );
+					nb.innerHTML = ( buttons[b].t ? buttons[b].t : lbl );
+
+					var nc = document.createAttribute( 'class' );
+					nc.value = buttons[b].c;
+					nb.setAttributeNode( nc );
+
+					var na = document.createAttribute( 'data-com' );
+					na.value = lbl + ',' + buttons[b].d;
+					nb.setAttributeNode( na );
+
+					nb.addEventListener( 'click', theSender.level )
+
+					document.getElementById( 'buttonsbox' ).appendChild( nb );
+				}
+
+				if ( theList[k][0] == '*' ) {
+
+					var slid = document.createElement( 'input' );
+					var attr = document.createAttribute( 'type' );
+					attr.value = 'range';
+					slid.setAttributeNode( attr );
+
+					var attr = document.createAttribute( 'min' );
+					attr.value = '0';
+					slid.setAttributeNode( attr );
+
+					var attr = document.createAttribute( 'max' );
+					attr.value = '255';
+					slid.setAttributeNode( attr );
+
+					var attr = document.createAttribute( 'class' );
+					attr.value = 'theslider';
+					slid.setAttributeNode( attr );
+
+					var attr = document.createAttribute( 'data-com' );
+					attr.value = lbl;
+					slid.setAttributeNode( attr );
+
+					slid.addEventListener( 'mouseup', theSender.dimmer );
+
+					document.getElementById( 'buttonsbox' ).appendChild( slid );
+				}
+
 			}
-		}
-			
-	}
-	
 
-			
-			
-	theSender.init();
+			var fx = [
+				{ 't': 'noFX', 'c': 'thebutton plain', 'd': 'F0' },
+				{ 't': 'blink', 'c': 'thebutton blink', 'd': 'F1' },
+				{ 't': 'rando', 'c': 'thebutton rando', 'd': 'F2' },
+				{ 't': 'flash', 'c': 'thebutton flash', 'd': 'F3' },
+				{ 't': 'fluor', 'c': 'thebutton fluor', 'd': 'F4' },
+				{ 't': 'twin', 'c': 'thebutton twin', 'd': 'F5' },
+				{ 't': 'anti', 'c': 'thebutton anti', 'd': 'F6' },
+				{ 't': 'breath', 'c': 'thebutton breath', 'd': 'F7' }
+			];
 
+			for ( var k in fx ) {
+				if ( !fx.hasOwnProperty( k ) ) {
+					continue;
+				}
 
+				var fb = document.createElement( 'button' );
+				fb.innerHTML = ( fx[k].t ? fx[k].t : k.toString( 10 ) );
 
-/* create interface buttons programmatically */
-			
-	var theList = "P0,P1,P2,P3,P4,*P5,P6,*P7,*P8,P9,P10,*P11,*P12,*P13".split(","); /* star-prefixed = mapped to PWM pin on arduino */
+				var c = document.createAttribute( 'class' );
+				c.value = fx[k].c;
+				fb.setAttributeNode( c );
 
-	var buttons = [
-		{ 't' : '', 'c' : 'thebutton bon level', 'd' : 'L255' },
-		{ 't' : 'off', 'c' : 'thebutton boff level', 'd' : 'L0' }
-		];
+				var a = document.createAttribute( 'data-com' );
+				a.value = fx[k].d;
+				fb.setAttributeNode( a );
 
-	for( var k in theList ) {
-		if( !theList.hasOwnProperty(k)) {
-			continue; 
-		}
-		
-		var lbl = theList[k].split('*').join('');
-		
-		var breaker = document.createElement('br');
-		document.getElementById('buttonsbox').appendChild( breaker );
-		
-		for( var b in buttons ) {
-			if( !buttons.hasOwnProperty(b)) {
-				continue;
+				fb.addEventListener( 'click', theSender.setfx );
+
+				document.getElementById( 'fxbox' ).appendChild( fb );
 			}
-		
-			var nb = document.createElement('button');
-			nb.innerHTML = (buttons[b].t ? buttons[b].t : lbl );
 
-			var nc = document.createAttribute('class');
-			nc.value= buttons[b].c;
-			nb.setAttributeNode(nc);
+		</script>
 
-			var na = document.createAttribute('data-com');
-			na.value= lbl + ',' + buttons[b].d;
-			nb.setAttributeNode(na);
-
-			nb.addEventListener('click', theSender.level )
-
-			document.getElementById('buttonsbox').appendChild(nb);
-		}
-
-		if( theList[k][0] == '*' ) {
-			
-			var slid = document.createElement('input');
-			var	attr = document.createAttribute('type');
-			attr.value='range';
-			slid.setAttributeNode( attr);
-
-			var attr = document.createAttribute('min');
-			attr.value='0';
-			slid.setAttributeNode( attr);
-
-			var attr = document.createAttribute('max');
-			attr.value='255';
-			slid.setAttributeNode( attr);
-
-			var attr = document.createAttribute('class');
-			attr.value='theslider';
-			slid.setAttributeNode( attr);
-
-			var attr = document.createAttribute('data-com');
-			attr.value= lbl;
-			slid.setAttributeNode( attr);
-			
-			slid.addEventListener('mouseup', theSender.dimmer );
-			
-			document.getElementById('buttonsbox').appendChild( slid );
-			}
-		
-		}
-		
-	var fx = [
-		{ 't' : 'noFX', 'c' : 'thebutton plain', 'd' : 'F0' },
-		{ 't' : 'blink', 'c' : 'thebutton blink', 'd' : 'F1' },
-		{ 't' : 'rando', 'c' : 'thebutton rando', 'd' : 'F2' },
-		{ 't' : 'flash', 'c' : 'thebutton flash', 'd' : 'F3' },
-		{ 't' : 'fluor', 'c' : 'thebutton fluor', 'd' : 'F4' },
-		{ 't' : 'twin', 'c' : 'thebutton twin', 'd' : 'F5' },
-		{ 't' : 'anti', 'c' : 'thebutton anti', 'd' : 'F6' },
-		{ 't' : 'breath', 'c' : 'thebutton breath', 'd' : 'F7' }
-	];
-
-		for( var k in fx ) {
-			if( !fx.hasOwnProperty( k )) {
-				continue;
-			}
-			
-			var fb = document.createElement( 'button');
-			fb.innerHTML = ( fx[k].t ? fx[k].t : k.toString(10) );
-
-			var c = document.createAttribute('class');
-			c.value = fx[k].c;
-			fb.setAttributeNode( c );
-			
-			var a = document.createAttribute('data-com');			
-			a.value = fx[k].d;
-			fb.setAttributeNode( a );
-			
-			fb.addEventListener('click', theSender.setfx );
-		
-		document.getElementById('fxbox').appendChild( fb );
-	}
-			
-</script>
-			
-</body>
+	</body>
 </html>
