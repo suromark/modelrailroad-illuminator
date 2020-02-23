@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Clickable Map Sample</title>
+		<meta charset="UTF-8">
+		<style>
+			#mapbox {
+				top:0;
+				left:0;
+				position: relative;
+				width:1000px;
+				height: 500px;
+				background-color: #ddd;
+			}
+			.switch {
+				position: absolute;
+				width: 4em;
+				overflow: hidden;
+				height: auto;
+				background-color: cyan;
+				color: black;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="mapbox"></div>
+		<script type="text/javascript">
+			var ttb = {
+				'server': '//toytrainbox',
+				'cfg': { },
+				'req': { },
+				'stimer': false, /* a timeout timer ID, or false */
+				'sactive': false, /* true if a request is underway */
+				'cmdqueue': [ ], /* a queue for commands to send */
+
+				'init': function () {
+					/* load config JSON file */
+					var getcfg = new XMLHttpRequest();
+					getcfg.addEventListener( 'load', function ( event ) {
+						if ( getcfg.status >= 200 && getcfg.status < 300 ) {
+							ttb.cfg = JSON.parse( getcfg.responseText );
+							ttb.drawmap();
+						} else {
+							alert( "JSON config load failed!" );
+						}
+					} );
+
+					getcfg.open( "GET", "./map.json", true );
+					getcfg.send();
+
+					/* prepare standard send command */
+					ttb.req = new XMLHttpRequest( );
+					ttb.req.addEventListener( 'load', function ( event ) {
+						if ( ttb.req.status >= 200 && ttb.req.status < 300 ) {
+							ttb.sendnext();
+						} else {
+							ttb.retry();
+						}
+					} );
+
+
+				}
+				,
+				/*
+				 * if there's at least one item in the cmdqueue, we send it to the server
+				 * @returns {undefined}
+				 */
+				'sendqueue': function () {
+					if ( ttb.cmdqueue.length > 0 ) {
+						ttb.sactive = true;
+						var current = ttb.cmdqueue[0];
+						console.log( ttb.cmdqueue.length, current );
+						ttb.req.open( "GET", ttb.server + "/cmd?" + current, true );
+						ttb.req.send();
+					} else {
+						ttb.sactive = false;
+					}
+				}
+				,
+				/**
+				 * Send the next item in the command queue after 1/100 sec delay
+				 * @returns {undefined}
+				 */
+				'sendnext': function () {
+					ttb.cleartimer();
+					ttb.cmdqueue.shift(); /* remove the element we sent */
+					ttb.stimer = window.setTimeout( ttb.sendqueue, 10 );
+				}
+				,
+				/**
+				 * Retry a failed transmission after 0.1 seconds
+				 * @returns {undefined}
+				 */
+				'retry': function () {
+					ttb.cleartimer();
+					ttb.stimer = window.setTimeout( ttb.sendqueue, 100 );
+				}
+				,
+				/* if there is a timer already running, clear it before proceeding */
+				'cleartimer': function () {
+					if ( ttb.stimer ) {
+						try {
+							window.clearTimeout( ttb.stimer );
+						} catch ( e ) {
+
+						}
+						ttb.stimer = false;
+					}
+				}
+				,
+				'enqueue': function ( cmd ) {
+					ttb.cmdqueue.push( cmd );
+					if ( ttb.sactive == false ) {
+						ttb.sendqueue();
+					}
+				}
+				,
+				'clicksend': function ( ev ) {
+					var e = ev || window.event;
+					var idx = e.target.getAttribute( 'data-idx' );
+					var commands = ttb.cfg.buttons[ idx ].cmd;
+					for ( var k in commands ) {
+						if ( commands.hasOwnProperty( k ) ) {
+							ttb.enqueue( commands[k] );
+						}
+					}
+				}
+				,
+				'drawmap': function () {
+					var contain = document.getElementById( 'mapbox' );
+
+					var s = document.createAttribute( 'style' );
+					s.value = 'background-image:url(' + ttb.cfg.image + ')';
+					contain.setAttributeNode( s );
+
+					for ( var idx in ttb.cfg.buttons ) {
+						if ( !ttb.cfg.buttons.hasOwnProperty( idx ) ) {
+							continue;
+						}
+						var cur = ttb.cfg.buttons[idx];
+
+						var b = document.createElement( 'button' );
+						b.innerHTML = cur.l;
+
+						var c = document.createAttribute( 'class' );
+						c.value = 'switch';
+						b.setAttributeNode( c );
+
+						var s = document.createAttribute( 'style' );
+						s.value = "top:" + cur.y + ";left:" + cur.x;
+						b.setAttributeNode( s );
+
+						var d = document.createAttribute( 'data-idx' );
+						d.value = idx.toString( 10 );
+						b.setAttributeNode( d );
+
+						b.addEventListener( 'click', ttb.clicksend );
+
+						contain.appendChild( b );
+					}
+
+				}
+
+			}
+			ttb.init();
+		</script>
+	</body>
+
+</html>
