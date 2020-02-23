@@ -9,8 +9,24 @@
 			.thebutton.blink { background-color: yellow; color: black; }
 			.thebutton.rando { background-color: cyan; color: black; }
 			.thebutton.flash { background-color: orange; color: black; }
-			.theslider { width: 20em; }
+			.theslider { width: 95%; }
 			#reporter, #config { font-family: monospace; font-size: 0.5em; }
+			div.channelbox {
+				float: left;
+				width: 10em;
+				height: 4em;
+				border: 1px solid gray;
+				margin: 0 0 0.2em 0.2em;
+			}
+			div#fxbox {
+				clear:both;
+			}
+			div#reporter {
+				width: 100%;
+				height: 1.5em;
+				background-color: #ddd;
+				overflow: hidden;
+			}
 		</style>
 	</head>
 	<body>
@@ -39,15 +55,15 @@
 			var theSender = {
 				'server': '//toytrainbox',
 				'board': 'T10', /* default board */
-				'pin': false,
-				'level': 0,
+				'pin': false, /* last pin used */
 				'boards': '10,11,12,13,14', /* boards present in the system */
 				'cfg': { },
-				'cmdpush': [ ], /* a queue for commands to send */
+				'stimer': false, /* a timeout timer ID, or false */
+				'cmdqueue': [ ], /* a queue for commands to send */
 				'req': { } /* request object */
 				,
 				'reporter': function ( text ) {
-					document.getElementById( 'reporter' ).innerHTML = text;
+					document.getElementById( 'reporter' ).innerHTML = theSender.cmdqueue.length.toString( 10 ) + " " + text;
 				}
 				,
 				'init': function () {
@@ -56,9 +72,10 @@
 					theSender.req.addEventListener( 'load', function ( event ) {
 						if ( theSender.req.status >= 200 && theSender.req.status < 300 ) {
 							theSender.reporter( theSender.req.responseText );
-							window.setTimeout( theSender.replayticker, 100 );
+							theSender.sendnext();
 						} else {
 							theSender.reporter( theSender.req.statusText );
+							theSender.retry();
 						}
 					} );
 
@@ -73,42 +90,89 @@
 						t.add( o );
 					}
 
-					t.addEventListener( 'change', theSender.boardwechsel );
+					t.addEventListener( 'change', theSender.boardchange );
 
 					document.getElementById( 'boardoff' ).addEventListener( 'click', theSender.boardoff );
 					document.getElementById( 'replay' ).addEventListener( 'click', theSender.replay );
 
-					theSender.replayticker();
-
 				}
 				,
-				'boardwechsel': function ( ev ) {
+				/*
+				 * if there's at least one item in the cmdqueue, we send it to the server
+				 * @returns {undefined}
+				 */
+				'sendqueue': function () {
+					if ( theSender.cmdqueue.length > 0 ) {
+						var current = theSender.cmdqueue[0];
+						console.log( theSender.cmdqueue.length, current );
+						theSender.req.open( "GET", theSender.server + "/cmd?" + current, true );
+						theSender.req.send();
+					} else {
+						theSender.reporter( "Send done." );
+					}
+				}
+				,
+				/**
+				 * Send the next item in the command queue after 1/100 sec delay
+				 * @returns {undefined}
+				 */
+				'sendnext': function () {
+					theSender.cleartimer();
+					theSender.cmdqueue.shift(); /* remove the element we sent */
+					theSender.stimer = window.setTimeout( theSender.sendqueue, 10 );
+				}
+				,
+				/**
+				 * Retry a failed transmission after 0.1 seconds
+				 * @returns {undefined}
+				 */
+				'retry': function () {
+					theSender.cleartimer();
+					theSender.stimer = window.setTimeout( theSender.sendqueue, 100 );
+				}
+				,
+				/* if there is a timer already running, clear it before proceeding */
+				'cleartimer': function () {
+					if ( theSender.stimer ) {
+						try {
+							window.clearTimeout( theSender.stimer );
+						} catch ( e ) {
+
+						}
+						theSender.stimer = false;
+					}
+				}
+				,
+				'boardchange': function ( ev ) {
 					var e = ev || window.event;
 					theSender.board = e.target.value;
 				}
 				,
-				'level' : function ( ev ) {
+				'level': function ( ev ) {
 					var e = ev || window.event;
 					var command = e.target.getAttribute( 'data-com' ).split( "," );
 					theSender.setconfig( command[0], command[1] );
-					theSender.cmdsend( command );
+					theSender.enqueue( command );
 				}
 				,
-						'dimmer': function ( ev ) {
-							var e = ev || window.event;
-							var command = ( e.target.getAttribute( 'data-com' ) + ",L" + e.target.value ).split( "," );
-							theSender.setconfig( command[0], command[1] );
-							theSender.cmdsend( command );
-						}
-				,
-				'cmdsend': function ( cmd ) {
-					var command = "/cmd?" + theSender.board + ',' + cmd;
-					theSender.reporter( "Senden... " + command );
-					theSender.req.open( "GET", theSender.server + command, true );
-					// theSender.req.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-					theSender.req.send();
+				'dimmer': function ( ev ) {
+					var e = ev || window.event;
+					var command = ( e.target.getAttribute( 'data-com' ) + ",L" + e.target.value ).split( "," );
+					theSender.setconfig( command[0], command[1] );
+					theSender.enqueue( command );
 				}
 				,
+				'enqueue': function ( cmd ) {
+					theSender.cmdqueue.push( theSender.board + "," + cmd );
+					theSender.sendqueue();
+				}
+				,
+				/*
+				 * Set the values for one pin in the internal config array buffer
+				 * @param {type} pin
+				 * @param {type} lev
+				 * @returns {undefined}
+				 */
 				'setconfig': function ( pin, lev ) {
 					if ( !theSender.cfg.hasOwnProperty( theSender.board ) ) {
 						theSender.cfg[ theSender.board ] = { };
@@ -121,31 +185,49 @@
 					theSender.showcfg();
 				}
 				,
+				/*
+				 * Respond to button click on FX selector
+				 * @type Array
+				 */
 				'setfx': function ( ev ) {
 					if ( !theSender.pin ) {
-						alert( "Bitte zuerst Ziel-Pin anklicken!" );
+						alert( "Choose a target pin first!" );
 						return false;
 					}
 					var e = ev || window.event;
 					var fx = e.target.getAttribute( 'data-com' );
-					theSender.cmdsend( theSender.pin + "," + fx );
+					theSender.enqueue( theSender.pin + "," + fx );
 					theSender.cfg[theSender.board][theSender.pin].F = fx;
 					theSender.showcfg();
 				}
 				,
+				/*
+				 * Display the current config as JSON string (for the user to copy and paste)
+				 * @returns {undefined}
+				 */
 				'showcfg': function () {
-					document.getElementById( 'config' ).innerHTML = JSON.stringify( theSender.cfg );
+					var jstring = JSON.stringify( theSender.cfg );
+					document.getElementById( 'config' ).innerHTML = jstring;
+					document.getElementById( 'config' ).value = jstring;
 				}
 				,
+				/*
+				 * Send "all OFF" to the currently selected board, remove it from cfg output
+				 * @returns {undefined}
+				 */
 				'boardoff': function () {
-					theSender.cmdsend( 'G0' );
+					theSender.enqueue( 'G0' );
 					delete theSender.cfg[theSender.board];
 					theSender.showcfg();
 				}
 				,
+				/*
+				 * Turn the JSON content of the config textarea into a string of commands and send them
+				 * @returns {undefined}
+				 */
 				'replay': function () {
 
-					theSender.cmdpush = [ ];
+					theSender.cmdqueue = [ ];
 
 					theSender.cfg = JSON.parse( document.getElementById( 'config' ).value );
 					for ( var b in theSender.cfg ) {
@@ -166,21 +248,11 @@
 							if ( cmds.F )
 								s.push( cmds.F );
 
-							theSender.cmdpush.push( s.join( "," ) );
+							theSender.cmdqueue.push( s.join( "," ) );
 
 						}
 					}
-				}
-				,
-				'replayticker': function () {
-					if ( theSender.cmdpush.length > 0 ) {
-						var current = theSender.cmdpush.shift();
-						console.log( current );
-						theSender.req.open( "GET", theSender.server + "/cmd?" + current, true );
-						theSender.req.send();
-					} else {
-						window.setTimeout( theSender.replayticker, 1000 );
-					}
+					theSender.sendqueue();
 				}
 
 			}
@@ -208,8 +280,11 @@
 
 				var lbl = theList[k].split( '*' ).join( '' );
 
-				var breaker = document.createElement( 'br' );
-				document.getElementById( 'buttonsbox' ).appendChild( breaker );
+				var contain = document.createElement( 'div' );
+				var cc = document.createAttribute( 'class' );
+				cc.value = 'channelbox';
+				contain.setAttributeNode( cc );
+				document.getElementById( 'buttonsbox' ).appendChild( contain );
 
 				for ( var b in buttons ) {
 					if ( !buttons.hasOwnProperty( b ) ) {
@@ -229,7 +304,7 @@
 
 					nb.addEventListener( 'click', theSender.level )
 
-					document.getElementById( 'buttonsbox' ).appendChild( nb );
+					contain.appendChild( nb );
 				}
 
 				if ( theList[k][0] == '*' ) {
@@ -257,7 +332,7 @@
 
 					slid.addEventListener( 'mouseup', theSender.dimmer );
 
-					document.getElementById( 'buttonsbox' ).appendChild( slid );
+					contain.appendChild( slid );
 				}
 
 			}
